@@ -58,8 +58,8 @@ typedef enum {
 #define GST_TYPE_V4L2_VID_DEC_SKIP_FRAMES (gst_video_dec_skip_frames ())
 #define GST_TYPE_V4L2_DEC_CAP_BUF_DYNAMIC_ALLOC (gst_video_dec_capture_buffer_dynamic_allocation ())
 
-gboolean default_nvbuf_api_version_new;
-gboolean default_cudadec_low_latency;
+static gboolean default_nvbuf_api_version_new;
+static gboolean default_cudadec_low_latency;
 gint default_num_extra_surfaces;
 
 static gboolean enable_latency_measurement = FALSE;

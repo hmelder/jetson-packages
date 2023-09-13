@@ -69,7 +69,7 @@ typedef struct
   GstCaps *src_caps;
 } GstV4l2VideoEncCData;
 
-gboolean default_nvbuf_api_version_new;
+static gboolean default_nvbuf_api_version_new;
 #ifdef USE_V4L2_TARGET_NV
 #define DEFAULT_CUDAENC_GPU_ID   0
 #ifdef USE_V4L2_TARGET_NV
