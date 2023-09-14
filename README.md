@@ -1,5 +1,7 @@
 # jetson-gstreamer
-Nvidia Jetson GStreamer sources from v32.x.x Jetson Linux
+This repository contains updated Nvidia Jetson GStreamer sources from v32.x.x Jetson Linux.
+The goal is to patch and verify that the sources work for Debian/Ubuntu versions newer than
+16.04 and newer GStreamer versions.
 
 ## Working (Confirmed):
 - gst-v4l2: A collection of hardware video encoders and decoders using NVENC and NVDEC.
