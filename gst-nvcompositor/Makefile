@@ -40,7 +40,6 @@ INCLUDES += -I./
 
 PKGS := gstreamer-1.0 \
 	gstreamer-base-1.0 \
-	gstreamer-bad-video-1.0 \
 	gstreamer-video-1.0 \
 	gstreamer-allocators-1.0 \
 	glib-2.0
