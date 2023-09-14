@@ -21,6 +21,14 @@ avdec_h264 ! fakevideosink
 
 ![A screenshot of a terminal displaying a working video pipeline](resources/img/demo.png "GStreamer Demo")
 
+## Untested:
+This is a list of untested (even for compilation) plugins:
+- gst-nvdrmvideosink
+- gst-nvtee
+- gst-plugins-nv-video-sinks
+- libv4lconvert
+- gst-jpeg
+- gst-egl
 
 ## Broken:
 - gst-nvcompositor: The GstVideoAggregator interface was unstable at the time this plugin was developed,
