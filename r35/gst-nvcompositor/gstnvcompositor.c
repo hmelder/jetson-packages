@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2017-2023, NVIDIA CORPORATION. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -67,9 +67,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_PAD_REQUEST,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
         (GST_CAPS_FEATURE_MEMORY_NVMM,
-            "{ " "RGBA, I420, NV12 }") ";" GST_VIDEO_CAPS_MAKE ("{ "
-            "RGBA, I420, NV12 }")));
-
+            "{ " "RGBA, I420, NV12 }")));
 
 /* Output capabilities */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -77,7 +75,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
         (GST_CAPS_FEATURE_MEMORY_NVMM,
-            "{ " "RGBA }") ";" GST_VIDEO_CAPS_MAKE ("{ " "RGBA }")));
+            "{ " "RGBA }")));
 
 #define DEFAULT_NVCOMP_PAD_XPOS   0
 #define DEFAULT_NVCOMP_PAD_YPOS   0
@@ -100,10 +98,6 @@ enum
 
 #define NV_COMPOSITOR_MAX_BUF         6
 #define GST_NV_COMPOSITOR_MEMORY_TYPE "nvcompositor"
-#define GST_OMX_MEMORY_TYPE           "openmax"
-#define GST_NV_FILTER_MEMORY_TYPE     "nvfilter"
-#define GST_NV_V4L2_MEMORY_TYPE       "V4l2Memory"
-#define GST_NVARGUS_MEMORY_TYPE       "nvarguscam"
 
 /* NvCompositor memory allocator Implementation */
 
@@ -123,7 +117,7 @@ struct _GstNvCompositorMemoryAllocator
   GstAllocator parent;
   guint width;
   guint height;
-  NvBufferColorFormat colorFormat;
+  NvBufSurfaceColorFormat colorFormat;
 };
 
 struct _GstNvCompositorMemoryAllocatorClass
@@ -145,9 +139,9 @@ gst_nv_compositor_memory_allocator_free (GstAllocator * allocator,
   GstNvCompositorMemory *omem = (GstNvCompositorMemory *) mem;
   GstNvCompositorBuffer *nvbuf = omem->buf;
 
-  ret = NvBufferDestroy (nvbuf->dmabuf_fd);
+  ret = NvBufSurfaceDestroy (nvbuf->surface);
   if (ret != 0) {
-    GST_ERROR ("%s: NvBufferDestroy Failed \n", __func__);
+    GST_ERROR ("%s: NvBufSurfaceDestroy Failed \n", __func__);
     goto error;
   }
 
@@ -166,19 +160,14 @@ error:
 static gpointer
 gst_nv_compositor_memory_map (GstMemory * mem, gsize maxsize, GstMapFlags flags)
 {
-  gint ret = 0;
   GstNvCompositorMemory *omem = (GstNvCompositorMemory *) mem;
-  NvBufferParams params = { 0 };
 
-  ret = NvBufferGetParams (omem->buf->dmabuf_fd, &params);
-  if (ret != 0) {
-    GST_ERROR ("%s: NvBufferGetParams Failed \n", __func__);
-    goto error;
+  if (!omem) {
+    g_print ("%s: GstNvCompositorMemory object ptr is NULL\n", __func__);
+    return NULL;
   }
 
-  return (gpointer) (params.nv_buffer);
-error:
-  return NULL;
+  return (gpointer) (omem->buf->surface);
 }
 
 /**
@@ -226,34 +215,29 @@ gst_nv_compositor_memory_allocator_alloc (GstAllocator * allocator,
   gint ret = 0;
   GstNvCompositorMemory *mem = NULL;
   GstNvCompositorBuffer *nvbuf = NULL;
-  NvBufferParams par = { 0 };
-  NvBufferCreateParams input_params = {0};
+  NvBufSurfaceAllocateParams input_params = {0};
   GstNvCompositorMemoryAllocator *compalloc = GST_NV_COMPOSITOR_MEMORY_ALLOCATOR (allocator);
 
   mem = g_slice_new0 (GstNvCompositorMemory);
   nvbuf = g_slice_new0 (GstNvCompositorBuffer);
 
-  input_params.width = compalloc->width;
-  input_params.height = compalloc->height;
-  input_params.layout = NvBufferLayout_Pitch;
-  input_params.colorFormat = compalloc->colorFormat;
-  input_params.payloadType = NvBufferPayload_SurfArray;
-  input_params.nvbuf_tag = NvBufferTag_VIDEO_CONVERT;
+  input_params.params.width = compalloc->width;
+  input_params.params.height = compalloc->height;
+  input_params.params.layout = NVBUF_LAYOUT_PITCH;
+  input_params.params.colorFormat = compalloc->colorFormat;
+  input_params.params.memType = NVBUF_MEM_SURFACE_ARRAY;
+  input_params.memtag = NvBufSurfaceTag_VIDEO_CONVERT;
 
-  ret = NvBufferCreateEx (&nvbuf->dmabuf_fd, &input_params);
+  ret = NvBufSurfaceAllocate(&nvbuf->surface, 1, &input_params);
   if (ret != 0) {
-    GST_ERROR ("%s: NvBufferCreateEx Failed \n", __func__);
+    GST_ERROR ("%s: NvBufSurfaceAllocate Failed \n", __func__);
     goto error;
   }
+  nvbuf->surface->numFilled = 1;
+  nvbuf->dmabuf_fd = nvbuf->surface->surfaceList[0].bufferDesc;
 
-  ret = NvBufferGetParams (nvbuf->dmabuf_fd, &par);
-  if (ret != 0) {
-    GST_ERROR ("%s: NvBufferGetParams Failed \n", __func__);
-    goto error;
-  }
-
-  gst_memory_init (GST_MEMORY_CAST (mem), GST_MEMORY_FLAG_NO_SHARE, allocator, NULL, par.nv_buffer_size, 1,/* Alignment */
-      0, par.nv_buffer_size);
+  gst_memory_init (GST_MEMORY_CAST (mem), GST_MEMORY_FLAG_NO_SHARE, allocator, NULL,
+      sizeof(NvBufSurface), 0, 0, sizeof(NvBufSurface));
   mem->buf = nvbuf;
 
   return GST_MEMORY_CAST (mem);
@@ -305,7 +289,7 @@ gst_nv_compositor_memory_allocator_init (GstNvCompositorMemoryAllocator *
  * members. */
 static GstAllocator *
 gst_nv_compositor_allocator_new (guint width, guint height,
-    NvBufferColorFormat out_pix_fmt)
+    NvBufSurfaceColorFormat out_pix_fmt)
 {
   GstNvCompositorMemoryAllocator *allocator = (GstNvCompositorMemoryAllocator *)
       g_object_new (GST_TYPE_NV_COMPOSITOR_MEMORY_ALLOCATOR, NULL);
@@ -332,6 +316,7 @@ gst_nvcompositor_pad_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstNvCompositorPad *pad = GST_NVCOMPOSITOR_PAD (object);
+  GstVideoAggregatorConvertPad *convert_pad = GST_VIDEO_AGGREGATOR_CONVERT_PAD (pad);
 
   switch (prop_id) {
     case PROP_NVCOMP_PAD_XPOS:
@@ -342,9 +327,11 @@ gst_nvcompositor_pad_set_property (GObject * object, guint prop_id,
       break;
     case PROP_NVCOMP_PAD_WIDTH:
       pad->width = g_value_get_int (value);
+      gst_video_aggregator_convert_pad_update_conversion_info(convert_pad);
       break;
     case PROP_NVCOMP_PAD_HEIGHT:
       pad->height = g_value_get_int (value);
+      gst_video_aggregator_convert_pad_update_conversion_info(convert_pad);
       break;
     case PROP_NVCOMP_PAD_ALPHA:
       pad->alpha = g_value_get_double (value);
@@ -403,23 +390,23 @@ gst_nvcompositor_pad_get_property (GObject * object, guint prop_id,
   * @param pix_fmt : Nvbuffer color format
   */
 static gboolean
-get_nvcolorformat (GstVideoInfo * info, NvBufferColorFormat * pix_fmt)
+get_nvcolorformat (GstVideoInfo * info, NvBufSurfaceColorFormat * pix_fmt)
 {
   gboolean ret = TRUE;
 
   switch (GST_VIDEO_INFO_FORMAT (info)) {
     case GST_VIDEO_FORMAT_I420:
-      *pix_fmt = NvBufferColorFormat_YUV420;
+      *pix_fmt = NVBUF_COLOR_FORMAT_YUV420;
       break;
     case GST_VIDEO_FORMAT_NV12:
-      *pix_fmt = NvBufferColorFormat_NV12;
+      *pix_fmt = NVBUF_COLOR_FORMAT_NV12;
       break;
     case GST_VIDEO_FORMAT_RGBA:
-      *pix_fmt = NvBufferColorFormat_ABGR32;
+      *pix_fmt = NVBUF_COLOR_FORMAT_RGBA;
       break;
     default:
       GST_ERROR ("buffer type not supported");
-      *pix_fmt = NvBufferColorFormat_Invalid;
+      *pix_fmt = NVBUF_COLOR_FORMAT_INVALID;
       ret = FALSE;
       break;
   }
@@ -490,169 +477,59 @@ gst_nvcompositor_mpad_output_size (GstNvCompositor * nvcomp,
     *output_height = pad_h;
 }
 
-/**
-  * NvCompositorPad set info function.
-  *
-  * @param pad: GstVideoAggregatorPad object instance
-  * @param vagg: GstVideoAggregator object instance
-  * @param current_info: input pad video info
-  * @param wanted_info: input pad needed info
-  */
-static gboolean
-gst_nvcompositor_pad_set_info (GstVideoAggregatorPad * pad,
-    GstVideoAggregator * vagg G_GNUC_UNUSED,
-    GstVideoInfo * current_info, GstVideoInfo * wanted_info)
+static void
+gst_nvcompositor_create_conversion_info (GstVideoAggregatorConvertPad * pad,
+    GstVideoAggregator * vagg, GstVideoInfo * conversion_info)
 {
   GstNvCompositorPad *cpad = GST_NVCOMPOSITOR_PAD (pad);
+  gint width, height;
 
-  if (!current_info->finfo)
-    return TRUE;
+  GST_VIDEO_AGGREGATOR_CONVERT_PAD_CLASS
+      (gst_nvcompositor_pad_parent_class)->create_conversion_info (pad, vagg,
+      conversion_info);
+  if (!conversion_info->finfo)
+    return;
 
-  if (GST_VIDEO_INFO_FORMAT (current_info) == GST_VIDEO_FORMAT_UNKNOWN)
-    return TRUE;
+  gst_nvcompositor_mpad_output_size (GST_NVCOMPOSITOR (vagg), cpad,
+      GST_VIDEO_INFO_PAR_N (&vagg->info), GST_VIDEO_INFO_PAR_D (&vagg->info), &width, &height);
 
-  cpad->conversion_info = *current_info;
-  cpad->input_width = GST_VIDEO_INFO_WIDTH (&cpad->conversion_info);
-  cpad->input_height = GST_VIDEO_INFO_HEIGHT (&cpad->conversion_info);
+  /* The only thing that can change here is the width
+   * and height, otherwise set_info would've been called */
+  if (GST_VIDEO_INFO_WIDTH (conversion_info) != width ||
+      GST_VIDEO_INFO_HEIGHT (conversion_info) != height) {
+    GstVideoInfo tmp_info;
 
-  if (!get_nvcolorformat (&cpad->conversion_info, &cpad->comppad_pix_fmt)) {
-    GST_ERROR_OBJECT (vagg,
-        "Failed to get nvcompositorpad input NvColorFormat");
-    return FALSE;
+    /* Initialize with the wanted video format and our original width and
+     * height as we don't want to rescale. Then copy over the wanted
+     * colorimetry, and chroma-site and our current pixel-aspect-ratio
+     * and other relevant fields.
+     */
+    gst_video_info_set_format (&tmp_info,
+        GST_VIDEO_INFO_FORMAT (conversion_info), width, height);
+    tmp_info.chroma_site = conversion_info->chroma_site;
+    tmp_info.colorimetry = conversion_info->colorimetry;
+    tmp_info.par_n = conversion_info->par_n;
+    tmp_info.par_d = conversion_info->par_d;
+    tmp_info.fps_n = conversion_info->fps_n;
+    tmp_info.fps_d = conversion_info->fps_d;
+    tmp_info.flags = conversion_info->flags;
+    tmp_info.interlace_mode = conversion_info->interlace_mode;
+
+    *conversion_info = tmp_info;
   }
 
-  return TRUE;
+  cpad->conversion_info = *conversion_info;
 }
 
-/**
-  * Prepare the frame from the pad buffer.
-  *
-  * @param pad: GstVideoAggregatorPad object instance
-  * @param vagg: GstVideoAggregator object instance
-  */
 static gboolean
 gst_nvcompositor_pad_prepare_frame (GstVideoAggregatorPad * pad,
-    GstVideoAggregator * vagg)
+    GstVideoAggregator * vagg, GstBuffer * buffer,
+    GstVideoFrame * prepared_frame)
 {
-  guint i = 0;
-  gint ret = 0;
-  guint SrcWidth[3] = { 0 };
-  guint SrcHeight[3] = { 0 };
-  guint Bufsize = 0;
-  GstMemory *inmem = NULL;
-  GstMapInfo inmap = GST_MAP_INFO_INIT;
-  NvBufferParams params = { 0 };
-  NvBufferCreateParams input_params = {0};
-  GstNvCompositorPad *cpad = GST_NVCOMPOSITOR_PAD (pad);
-
-  GstBuffer *buffer = gst_video_aggregator_pad_get_current_buffer(pad);
-  if (!buffer)
-    return TRUE;
-
-  inmem = gst_buffer_peek_memory (buffer, 0);
-  if (!inmem)
-    goto no_memory;
-
-  if (!g_strcmp0 (inmem->allocator->mem_type, GST_ALLOCATOR_SYSMEM)) {
-    if (!gst_buffer_map (buffer, &inmap, GST_MAP_READ))
-      goto invalid_inbuf;
-
-    if (cpad->comppad_buf_flag == TRUE) {
-      input_params.width = GST_VIDEO_INFO_WIDTH (&cpad->conversion_info);
-      input_params.height = GST_VIDEO_INFO_HEIGHT (&cpad->conversion_info);
-      input_params.layout = NvBufferLayout_Pitch;
-      input_params.colorFormat = cpad->comppad_pix_fmt;
-      input_params.payloadType = NvBufferPayload_SurfArray;
-      input_params.nvbuf_tag = NvBufferTag_VIDEO_CONVERT;
-
-      ret = NvBufferCreateEx (&cpad->comppad_buf.pad_dmabuf_fd, &input_params);
-      if (ret != 0) {
-        GST_ERROR ("%s: NvBufferCreateEx Failed \n", __func__);
-        goto error;
-      }
-      cpad->comppad_buf_flag = FALSE;
-    }
-
-    ret = NvBufferGetParams (cpad->comppad_buf.pad_dmabuf_fd, &params);
-    if (ret != 0) {
-      GST_ERROR ("NvBufferGetParams failed for out_dmabuf_fd\n");
-      goto error;
-    }
-
-    switch (params.pixel_format) {
-      case NvBufferColorFormat_ABGR32:
-        SrcWidth[0] = GST_VIDEO_INFO_WIDTH (&cpad->conversion_info);
-        SrcHeight[0] = GST_VIDEO_INFO_HEIGHT (&cpad->conversion_info);
-        break;
-      case NvBufferColorFormat_NV12:
-        SrcWidth[0] =
-            GST_ROUND_UP_4 (GST_VIDEO_INFO_WIDTH (&cpad->conversion_info));
-        SrcHeight[0] =
-            GST_ROUND_UP_2 (GST_VIDEO_INFO_HEIGHT (&cpad->conversion_info));
-        SrcWidth[1] = GST_ROUND_UP_2 (SrcWidth[0] / 2);
-        SrcHeight[1] = SrcHeight[0] / 2;
-        break;
-      case NvBufferColorFormat_YUV420:
-        SrcWidth[0] =
-            GST_ROUND_UP_4 (GST_VIDEO_INFO_WIDTH (&cpad->conversion_info));
-        SrcHeight[0] =
-            GST_ROUND_UP_2 (GST_VIDEO_INFO_HEIGHT (&cpad->conversion_info));
-        SrcWidth[1] =
-            GST_ROUND_UP_4 (GST_VIDEO_INFO_WIDTH (&cpad->conversion_info) / 2);
-        SrcHeight[1] = SrcHeight[0] / 2;
-        SrcWidth[2] = SrcWidth[1];
-        SrcHeight[2] = SrcHeight[1];
-        break;
-      default:
-        GST_ERROR ("%s: Not supoprted in_pix_fmt\n", __func__);
-        goto error;
-        break;
-    }
-
-    for (i = 0; i < params.num_planes; i++) {
-      ret =
-          Raw2NvBuffer (inmap.data + Bufsize, i, SrcWidth[i], SrcHeight[i],
-          cpad->comppad_buf.pad_dmabuf_fd);
-      if (ret != 0) {
-        GST_ERROR ("Raw2NvBuffer Failed\n");
-        goto error;
-      }
-      Bufsize += SrcWidth[i] * SrcHeight[i];
-    }
-
-    gst_buffer_unmap (buffer, &inmap);
-  }
-
-  return TRUE;
-
-/* ERRORS */
-no_memory:
-  {
-    GST_ERROR ("no memory block");
-    return FALSE;
-  }
-invalid_inbuf:
-  {
-    GST_ERROR ("input buffer mapinfo failed");
-    return FALSE;
-  }
-error:
-  {
-    gst_buffer_unmap (buffer, &inmap);
-    return FALSE;
-  }
-}
-
-/**
-  * clean the frame previously prepared(if any).
-  *
-  * @param pad: GstVideoAggregatorPad object instance
-  * @param vagg: GstVideoAggregator object instance
-  */
-static void
-gst_nvcompositor_pad_clean_frame (GstVideoAggregatorPad * pad,
-    GstVideoAggregator * vagg)
-{
+  return
+      GST_VIDEO_AGGREGATOR_PAD_CLASS
+      (gst_nvcompositor_pad_parent_class)->prepare_frame (pad, vagg, buffer,
+      prepared_frame);
 }
 
 /**
@@ -663,16 +540,6 @@ gst_nvcompositor_pad_clean_frame (GstVideoAggregatorPad * pad,
 static void
 gst_nvcompositor_pad_finalize (GObject * object)
 {
-  gint ret = 0;
-  GstNvCompositorPad *cpad = GST_NVCOMPOSITOR_PAD (object);
-
-  if (cpad->comppad_buf.pad_dmabuf_fd != -1) {
-    ret = NvBufferDestroy (cpad->comppad_buf.pad_dmabuf_fd);
-    if (ret != 0) {
-      GST_ERROR ("%s: NvBufferDestroy Failed \n", __func__);
-    }
-  }
-
   G_OBJECT_CLASS (gst_nvcompositor_pad_parent_class)->finalize (object);
 }
 
@@ -687,6 +554,8 @@ gst_nvcompositor_pad_class_init (GstNvCompositorPadClass * klass)
   GObjectClass *gobject_class = (GObjectClass *) klass;
   GstVideoAggregatorPadClass *vaggpadclass =
       (GstVideoAggregatorPadClass *) klass;
+  GstVideoAggregatorConvertPadClass *vaggcpadclass =
+      (GstVideoAggregatorConvertPadClass *) klass;
 
   gobject_class->set_property = gst_nvcompositor_pad_set_property;
   gobject_class->get_property = gst_nvcompositor_pad_get_property;
@@ -719,11 +588,10 @@ gst_nvcompositor_pad_class_init (GstNvCompositorPadClass * klass)
           GST_PARAM_CONTROLLABLE | G_PARAM_READWRITE | G_PARAM_CONSTRUCT |
           G_PARAM_STATIC_STRINGS));
 
-  vaggpadclass->set_info = GST_DEBUG_FUNCPTR (gst_nvcompositor_pad_set_info);
   vaggpadclass->prepare_frame =
       GST_DEBUG_FUNCPTR (gst_nvcompositor_pad_prepare_frame);
-  vaggpadclass->clean_frame =
-      GST_DEBUG_FUNCPTR (gst_nvcompositor_pad_clean_frame);
+  vaggcpadclass->create_conversion_info =
+      GST_DEBUG_FUNCPTR (gst_nvcompositor_create_conversion_info);
 }
 
 /**
@@ -737,8 +605,6 @@ gst_nvcompositor_pad_init (GstNvCompositorPad * nvcompo_pad)
   nvcompo_pad->xpos = DEFAULT_NVCOMP_PAD_XPOS;
   nvcompo_pad->ypos = DEFAULT_NVCOMP_PAD_YPOS;
   nvcompo_pad->alpha = DEFAULT_NVCOMP_PAD_ALPHA;
-  nvcompo_pad->comppad_buf_flag = TRUE;
-  nvcompo_pad->comppad_buf.pad_dmabuf_fd = -1;
 }
 
 /* GstNvCompositor */
@@ -856,8 +722,11 @@ gst_nvcompositor_get_property (GObject * object,
 
 static GstElementClass *gparent_class = NULL;
 
+static void gst_nvcompositor_child_proxy_init (gpointer g_iface, gpointer iface_data);
+
 #define gst_nvcompositor_parent_class parent_class
-G_DEFINE_TYPE (GstNvCompositor, gst_nvcompositor, GST_TYPE_VIDEO_AGGREGATOR);
+G_DEFINE_TYPE_WITH_CODE (GstNvCompositor, gst_nvcompositor, GST_TYPE_VIDEO_AGGREGATOR,
+        G_IMPLEMENT_INTERFACE (GST_TYPE_CHILD_PROXY, gst_nvcompositor_child_proxy_init));
 
 /**
   * Fixate and return the src pad caps provided.
@@ -899,6 +768,18 @@ gst_nvcompositor_fixate_caps (GstAggregator * agg, GstCaps * caps)
     gint fps_numerator, fps_denominator;
     gint mpad_output_width, mpad_output_height;
     gint cur_width, cur_height;
+
+    nvcompositor_pad->input_width = GST_VIDEO_INFO_WIDTH (&vaggpad->info);
+    nvcompositor_pad->input_height = GST_VIDEO_INFO_HEIGHT (&vaggpad->info);
+
+    if (vaggpad->info.finfo == NULL) {
+      GST_WARNING_OBJECT (vagg, "This pad is invalid");
+      continue;
+    }
+    else if (!get_nvcolorformat (&vaggpad->info, &nvcompositor_pad->comppad_pix_fmt)) {
+      GST_ERROR_OBJECT (vagg, "Failed to get nvcompositorpad input NvColorFormat");
+      return ret;
+    }
 
     fps_numerator = GST_VIDEO_INFO_FPS_N (&vaggpad->info);
     fps_denominator = GST_VIDEO_INFO_FPS_D (&vaggpad->info);
@@ -1067,7 +948,7 @@ gst_nvcompositor_decide_allocation (GstAggregator * agg, GstQuery * query)
       pool = gst_buffer_pool_new ();
 
       config = gst_buffer_pool_get_config (pool);
-      gst_buffer_pool_config_set_params (config, outcaps, NvBufferGetSize(), minimum, minimum);
+      gst_buffer_pool_config_set_params (config, outcaps, sizeof(NvBufSurface), minimum, minimum);
       allocator = gst_nv_compositor_allocator_new (nvcomp->out_width, nvcomp->out_height, nvcomp->out_pix_fmt);
 
       gst_buffer_pool_config_set_allocator (config, allocator, &params);
@@ -1136,6 +1017,12 @@ gst_nvcompositor_stop (GstAggregator * agg)
     nvcomp->pool = NULL;
   }
 
+  g_free (nvcomp->comp_params.src_comp_rect);
+  g_free (nvcomp->comp_params.dst_comp_rect);
+  g_free (nvcomp->comp_params.alpha);
+  g_free (nvcomp->comp_params.params.color_bg);
+  memset (&nvcomp->comp_params, 0, sizeof (nvcomp->comp_params));
+
   return TRUE;
 }
 
@@ -1191,56 +1078,41 @@ static gboolean
 do_nvcomposite (GstVideoAggregator * vagg, gint out_dmabuf_fd)
 {
   gint i = 0;
-  guint all_yuv = 0;
   GList *l;
   gint ret = 0;
   gint input_dmabuf_fds[MAX_INPUT_FRAME] = {-1, -1, -1, -1, -1, -1};
   gint input_dmabuf_count = 0;
-  gint releasefd_index[MAX_INPUT_FRAME] = { 0 };
   GstMemory *inmem = NULL;
   GstMapInfo inmap = GST_MAP_INFO_INIT;
+  GstBuffer *inbuf = NULL;
+  NvBufSurface *input_nvbuf_surfs[MAX_INPUT_FRAME];
+  NvBufSurface *dst_nvbuf_surf;
 
-  
   GstNvCompositor *nvcomp = GST_NVCOMPOSITOR (vagg);
 
   for (l = GST_ELEMENT (vagg)->sinkpads; l; l = l->next) {
     GstVideoAggregatorPad *pad = l->data;
-    GstBuffer *buffer = gst_video_aggregator_pad_get_current_buffer(pad);
-    if (!buffer)
+    if (!gst_video_aggregator_pad_has_current_buffer (pad))
       continue;
+
+    inbuf = gst_video_aggregator_pad_get_current_buffer (pad);
 
     GstNvCompositorPad *compo_pad = GST_NVCOMPOSITOR_PAD (pad);
 
-    inmem = gst_buffer_peek_memory (buffer, 0);
+    inmem = gst_buffer_peek_memory (inbuf, 0);
     if (!inmem) {
       GST_ERROR ("no input memory block");
       return FALSE;
     }
 
-    if (!g_strcmp0 (inmem->allocator->mem_type, GST_OMX_MEMORY_TYPE) ||
-        !g_strcmp0 (inmem->allocator->mem_type, GST_NV_FILTER_MEMORY_TYPE) ||
-        !g_strcmp0 (inmem->allocator->mem_type, GST_NVARGUS_MEMORY_TYPE) ||
-        !g_strcmp0 (inmem->allocator->mem_type, GST_NV_V4L2_MEMORY_TYPE)) {
-      if (!gst_buffer_map (buffer, &inmap, GST_MAP_READ)) {
-        GST_ERROR ("input buffer mapinfo failed");
-        return FALSE;
-      }
-
-      ret = ExtractFdFromNvBuffer (inmap.data, &input_dmabuf_fds[i]);
-      if (ret != 0) {
-        GST_ERROR ("ExtractFdFromNvBuffer failed");
-        return FALSE;
-      }
-      if (!g_strcmp0 (inmem->allocator->mem_type,
-                      GST_OMX_MEMORY_TYPE)) {
-          releasefd_index[i] = 1;
-      }
-    } else if (!g_strcmp0 (inmem->allocator->mem_type, GST_ALLOCATOR_SYSMEM)) {
-      input_dmabuf_fds[i] = compo_pad->comppad_buf.pad_dmabuf_fd;
-    } else {
-      GST_ERROR ("input buffer not supported");
+    if (!gst_buffer_map (inbuf, &inmap, GST_MAP_READ)) {
+      GST_ERROR ("input buffer mapinfo failed");
       return FALSE;
     }
+
+    NvBufSurface *nvbuf_surf = ((NvBufSurface *) inmap.data);
+    input_dmabuf_fds[i] = nvbuf_surf->surfaceList[0].bufferDesc;
+    input_nvbuf_surfs[i] = nvbuf_surf;
 
     if (input_dmabuf_fds[i] == -1) {
       GST_ERROR ("input buffer invalid");
@@ -1259,80 +1131,72 @@ do_nvcomposite (GstVideoAggregator * vagg, gint out_dmabuf_fd)
     } else {
       nvcomp->comp_params.dst_comp_rect[i].width = compo_pad->input_width;
     }
-
     if (compo_pad->height) {
       nvcomp->comp_params.dst_comp_rect[i].height = compo_pad->height;
     } else {
       nvcomp->comp_params.dst_comp_rect[i].height = compo_pad->input_height;
     }
 
-    nvcomp->comp_params.dst_comp_rect_alpha[i] = (gfloat) compo_pad->alpha;
-    if (compo_pad->comppad_pix_fmt != NvBufferColorFormat_ABGR32) {
-      all_yuv = 1;
-    }
+    nvcomp->comp_params.alpha[i] = compo_pad->alpha;
 
+    /* TODO: Add individual composition filter support */
     switch(compo_pad->interpolation_method)
     {
       case GST_INTERPOLATION_NEAREST:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_Nearest;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Nearest;
         break;
       case GST_INTERPOLATION_BILINEAR:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_Bilinear;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Bilinear;
         break;
       case GST_INTERPOLATION_5_TAP:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_5_Tap;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Algo1;
         break;
       case GST_INTERPOLATION_10_TAP:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_10_Tap;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Algo2;
         break;
       case GST_INTERPOLATION_SMART:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_Smart;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Algo3;
         break;
       case GST_INTERPOLATION_NICEST:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_Nicest;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Algo4;
         break;
       default:
-          nvcomp->comp_params.composite_filter[i] = NvBufferTransform_Filter_Smart;
+          nvcomp->comp_params.params.composite_blend_filter = NvBufSurfTransformInter_Default;
         break;
     }
 
     if (inmap.data) {
-      gst_buffer_unmap (buffer, &inmap);
+      gst_buffer_unmap (inbuf, &inmap);
     }
 
     input_dmabuf_count += 1;
     i++;
   }
-  nvcomp->comp_params.input_buf_count = input_dmabuf_count;
 
-  if (!all_yuv && (nvcomp->out_pix_fmt == NvBufferColorFormat_ABGR32)) {
-    nvcomp->comp_params.composite_flag |= NVBUFFER_BLEND;
+  nvcomp->comp_params.params.input_buf_count = input_dmabuf_count;
+
+  if (nvcomp->out_pix_fmt == NVBUF_COLOR_FORMAT_RGBA) {
+    nvcomp->comp_params.params.composite_blend_flag |= NVBUFSURF_TRANSFORM_BLEND;
   }
 
-  nvcomp->comp_params.composite_flag |= NVBUFFER_COMPOSITE;
-  nvcomp->comp_params.composite_flag |= NVBUFFER_COMPOSITE_FILTER;
+  nvcomp->comp_params.params.composite_blend_flag |= NVBUFSURF_TRANSFORM_COMPOSITE;
+  nvcomp->comp_params.params.composite_blend_flag |= NVBUFSURF_TRANSFORM_COMPOSITE_FILTER;
 
-  if (!(nvcomp->comp_params.composite_flag & NVBUFFER_BLEND)) {
-    get_bg_color (nvcomp);
-    nvcomp->comp_params.composite_bgcolor.r = nvcomp->bg.r;
-    nvcomp->comp_params.composite_bgcolor.g = nvcomp->bg.g;
-    nvcomp->comp_params.composite_bgcolor.b = nvcomp->bg.b;
-  }
+  get_bg_color (nvcomp);
+  nvcomp->comp_params.params.color_bg->red = nvcomp->bg.r;
+  nvcomp->comp_params.params.color_bg->green = nvcomp->bg.g;
+  nvcomp->comp_params.params.color_bg->blue = nvcomp->bg.b;
 
-  ret = NvBufferComposite (input_dmabuf_fds, out_dmabuf_fd, &nvcomp->comp_params);
+  ret = NvBufSurfaceFromFd(out_dmabuf_fd, (void**)(&dst_nvbuf_surf));
   if (ret != 0) {
-    GST_ERROR ("NvBufferComposite failed");
+    GST_ERROR ("NvBufSurfaceFromFd failed");
     return FALSE;
   }
 
-  for (i = 0; i < MAX_INPUT_FRAME; i++) {
-    if (releasefd_index[i] == 1) {
-      ret = NvReleaseFd (input_dmabuf_fds[i]);
-      if (ret != 0) {
-        GST_ERROR ("NvReleaseFd failed");
-        return FALSE;
-      }
-    }
+  ret = NvBufSurfTransformMultiInputBufCompositeBlend(input_nvbuf_surfs, dst_nvbuf_surf, &nvcomp->comp_params);
+  if (ret != 0) {
+    GST_ERROR ("NvBufSurfTransformMultiInputBufComposite failed");
+    return FALSE;
   }
 
   return TRUE;
@@ -1457,6 +1321,84 @@ gst_nvcompositor_sink_query (GstAggregator * agg, GstAggregatorPad * bpad,
   }
 }
 
+static GstPad *
+gst_nvcompositor_request_new_pad (GstElement * element, GstPadTemplate * templ,
+    const gchar * req_name, const GstCaps * caps)
+{
+  GstPad *newpad;
+
+  newpad = (GstPad *)
+      GST_ELEMENT_CLASS (parent_class)->request_new_pad (element,
+      templ, req_name, caps);
+
+  if (newpad == NULL)
+    goto could_not_create;
+
+  gst_child_proxy_child_added (GST_CHILD_PROXY (element), G_OBJECT (newpad),
+      GST_OBJECT_NAME (newpad));
+
+  return newpad;
+
+could_not_create:
+  {
+    GST_DEBUG_OBJECT (element, "could not create/add pad");
+    return NULL;
+  }
+}
+
+static void
+gst_nvcompositor_release_pad (GstElement * element, GstPad * pad)
+{
+  GstNvCompositor *compositor = GST_NVCOMPOSITOR (element);
+
+  GST_DEBUG_OBJECT (compositor, "release pad %s:%s", GST_DEBUG_PAD_NAME (pad));
+
+  gst_child_proxy_child_removed (GST_CHILD_PROXY (compositor), G_OBJECT (pad),
+      GST_OBJECT_NAME (pad));
+
+  GST_ELEMENT_CLASS (parent_class)->release_pad (element, pad);
+}
+
+/* GstChildProxy implementation */
+static GObject *
+gst_nvcompositor_child_proxy_get_child_by_index (GstChildProxy * child_proxy,
+    guint index)
+{
+  GstNvCompositor *compositor = GST_NVCOMPOSITOR (child_proxy);
+  GObject *obj = NULL;
+
+  GST_OBJECT_LOCK (compositor);
+  obj = g_list_nth_data (GST_ELEMENT_CAST (compositor)->sinkpads, index);
+  if (obj)
+    gst_object_ref (obj);
+  GST_OBJECT_UNLOCK (compositor);
+
+  return obj;
+}
+
+static guint
+gst_nvcompositor_child_proxy_get_children_count (GstChildProxy * child_proxy)
+{
+  guint count = 0;
+  GstNvCompositor *compositor = GST_NVCOMPOSITOR (child_proxy);
+
+  GST_OBJECT_LOCK (compositor);
+  count = GST_ELEMENT_CAST (compositor)->numsinkpads;
+  GST_OBJECT_UNLOCK (compositor);
+  GST_INFO_OBJECT (compositor, "Children Count: %d", count);
+
+  return count;
+}
+
+static void
+gst_nvcompositor_child_proxy_init (gpointer g_iface, gpointer iface_data)
+{
+  GstChildProxyInterface *iface = g_iface;
+
+  iface->get_child_by_index = gst_nvcompositor_child_proxy_get_child_by_index;
+  iface->get_children_count = gst_nvcompositor_child_proxy_get_children_count;
+}
+
 /**
   * initialize the nvcompositor's class.
   *
@@ -1476,6 +1418,10 @@ gst_nvcompositor_class_init (GstNvCompositorClass * klass)
   gobject_class->get_property = gst_nvcompositor_get_property;
   gobject_class->set_property = gst_nvcompositor_set_property;
 
+  gstelement_class->request_new_pad =
+      GST_DEBUG_FUNCPTR (gst_nvcompositor_request_new_pad);
+  gstelement_class->release_pad =
+      GST_DEBUG_FUNCPTR (gst_nvcompositor_release_pad);
   agg_class->sink_query = gst_nvcompositor_sink_query;
   agg_class->fixate_src_caps = gst_nvcompositor_fixate_caps;
   agg_class->negotiated_src_caps = gst_nvcompositor_negotiated_caps;
@@ -1525,7 +1471,15 @@ gst_nvcompositor_init (GstNvCompositor * nvcomp)
   nvcomp->bg.g = 0;
   nvcomp->bg.b = 0;
   nvcomp->pool = NULL;
-  memset(&nvcomp->comp_params, 0, sizeof(NvBufferCompositeParams));
+  memset(&nvcomp->comp_params, 0, sizeof(NvBufSurfTransformCompositeParams));
+  nvcomp->comp_params.src_comp_rect =
+      (NvBufSurfTransformRect *) g_malloc0 (MAX_INPUT_FRAME * sizeof(NvBufSurfTransformRect));
+  nvcomp->comp_params.dst_comp_rect =
+      (NvBufSurfTransformRect *) g_malloc0 (MAX_INPUT_FRAME * sizeof (NvBufSurfTransformRect));
+  nvcomp->comp_params.alpha =
+      (float *) g_malloc0 (MAX_INPUT_FRAME * sizeof (float));
+  nvcomp->comp_params.params.color_bg =
+      (NvBufSurfTransform_ColorParams *) g_malloc0 (sizeof (NvBufSurfTransform_ColorParams));
 }
 
 /* NvCompositor Element registration */
