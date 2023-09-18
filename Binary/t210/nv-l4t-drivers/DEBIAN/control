@@ -1,0 +1,8 @@
+Package: nv-l4t-drivers
+Version: 32.7.4-1
+Section: kernel
+Priority: standard
+Architecture: arm64
+Maintainer: Hugo Melder <contact@hugomelder.com>
+Homepage: http://developer.nvidia.com/jetson
+Description: Driver package for the Nvidia Jetson SBCs based on the Tegra T210.
