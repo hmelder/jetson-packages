@@ -27,3 +27,4 @@ go.work
 # Repository
 nvidia-bin-release/
 jetson-packages
+packages/
