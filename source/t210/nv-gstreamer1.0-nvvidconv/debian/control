@@ -1,0 +1,11 @@
+Source: nv-gstreamer1.0-nvvidconv
+Section: video
+Priority: optional
+Maintainer: Hugo Melder <contact@hugomelder.com>
+Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config, nv-l4t-drivers
+Standards-Version: 4.6.2.0
+
+Package: nv-gstreamer1.0-nvvidconv
+Architecture: arm64
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: GStreamer plugin for mapping buffers into video memory.
