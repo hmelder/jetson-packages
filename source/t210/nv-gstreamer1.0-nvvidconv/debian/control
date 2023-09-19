@@ -2,7 +2,7 @@ Source: nv-gstreamer1.0-nvvidconv
 Section: video
 Priority: optional
 Maintainer: Hugo Melder <contact@hugomelder.com>
-Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config, nv-l4t-drivers
+Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config, nv-l4t-drivers-dev
 Standards-Version: 4.6.2.0
 
 Package: nv-gstreamer1.0-nvvidconv

@@ -33,8 +33,7 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <gst/base/gstbasetransform.h>
-
-#include "nvbuf_utils.h"
+#include <nvbuf_utils.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_NVVCONV \
