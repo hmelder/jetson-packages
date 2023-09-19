@@ -28,3 +28,7 @@ go.work
 nvidia-bin-release/
 jetson-packages
 packages/
+
+# PBuilder
+pbuilder/*.tgz
+pbuilder/result/*
