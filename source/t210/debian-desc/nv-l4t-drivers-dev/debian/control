@@ -7,5 +7,8 @@ Standards-Version: 4.6.2.0
 
 Package: nv-l4t-drivers-dev
 Architecture: arm64
-Depends: nv-l4t-drivers (= 32.7.4)
+Depends: nv-l4t-drivers (= 32.7.4-1)
 Description: Development files for Nvidia L4T drivers.
+	This package contains the development files for the Nvidia L4T drivers,
+	including headers and pkg-config files.
+
