@@ -1,0 +1,10 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib/aarch64-linux-gnu/tegra
+includedir=${prefix}/include/tegra
+
+Name: nvbuf
+Description: Nvidia Buffer Utilities and Surface Libraries
+Version: 32.7.4
+Libs: -L${libdir} -lnvbuf_utils -lnvbufsurface
+Cflags: -I${includedir}
