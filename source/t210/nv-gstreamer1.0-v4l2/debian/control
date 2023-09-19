@@ -1,0 +1,11 @@
+Source: nv-gstreamer1.0-v4l2
+Section: video
+Priority: optional
+Maintainer: Hugo Melder <contact@hugomelder.com>
+Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config, nv-l4t-drivers-dev
+Standards-Version: 4.6.2.0
+
+Package: nv-gstreamer1.0-v4l2
+Architecture: arm64
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Nvidia encoding and decoding elements for GStreamer based on the V4L2 APIs.
