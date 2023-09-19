@@ -1,8 +1,0 @@
-Package: nv-jetson-nano-devkit-config
-Version: 32.7.4-1
-Section: kernel
-Priority: standard
-Architecture: arm64
-Maintainer: Hugo Melder <contact@hugomelder.com>
-Homepage: http://developer.nvidia.com/jetson
-Description: Boot configuration for the Jetson Nano Developer Kit.
