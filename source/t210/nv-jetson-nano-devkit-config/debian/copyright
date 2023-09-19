@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: nv-gstreamer1.0-nvvidconv
+Source: https://github.com/hmelder/jetson-packages
+
+Files: *
+Copyright: 2023, Hugo Melder
+LICENSE: MIT

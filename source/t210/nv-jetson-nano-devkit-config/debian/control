@@ -1,0 +1,10 @@
+Source: nv-jetson-nano-devkit-config
+Section: kernel
+Priority: standard
+Maintainer: Hugo Melder <contact@hugomelder.com>
+Build-Depends: debhelper-compat (= 13), meson, ninja-build
+Standards-Version: 4.6.2.0
+
+Package: nv-jetson-nano-devkit-config
+Architecture: arm64
+Description: Boot configuration for the Jetson Nano Developer Kit.
