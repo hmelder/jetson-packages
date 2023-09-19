@@ -8,7 +8,5 @@ install_headers(
     subdir : 'tegra',
 )
 
-install_data(
-  'nvbuf.pc',
-  subdir: 'pkgconfig',
-)
+pkgconfig_dir = join_paths(get_option('prefix'), get_option('libdir'), 'pkgconfig')
+install_data('nvbuf.pc', install_dir: pkgconfig_dir)
