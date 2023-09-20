@@ -9,11 +9,11 @@ usr/sbin/nvargus_nvraw usr/sbin
 usr/sbin/nvphsd usr/sbin
 usr/sbin/nvs-service usr/sbin
 usr/sbin/nvtunerd usr/sbin
-usr/lib/aarch64-linux-gnu/*.so.* usr/lib/aarch64-linux-gnu
+usr/lib/aarch64-linux-gnu/*.so* usr/lib/aarch64-linux-gnu
 usr/lib/aarch64-linux-gnu/libv4l/plugins/nv/*.so usr/lib/aarch64-linux-gnu/libv4l/plugins/nv
-usr/lib/aarch64-linux-gnu/tegra/*.so.* usr/lib/aarch64-linux-gnu/tegra
+usr/lib/aarch64-linux-gnu/tegra/*.so* usr/lib/aarch64-linux-gnu/tegra
 usr/lib/aarch64-linux-gnu/tegra/nvidia_icd.json usr/lib/aarch64-linux-gnu/tegra
-usr/lib/aarch64-linux-gnu/tegra-egl/*.so.* usr/lib/aarch64-linux-gnu/tegra-egl
+usr/lib/aarch64-linux-gnu/tegra-egl/*.so* usr/lib/aarch64-linux-gnu/tegra-egl
 usr/lib/aarch64-linux-gnu/tegra-egl/nvidia.json usr/lib/aarch64-linux-gnu/tegra-egl
 usr/lib/firmware/adsp.elf usr/lib/firmware
 usr/lib/firmware/bcm4354.hcd usr/lib/firmware
@@ -29,7 +29,7 @@ usr/lib/firmware/gm20b/*.bin usr/lib/firmware/gm20b
 usr/lib/firmware/tegra21x/*.bin usr/lib/firmware/tegra21x
 usr/lib/firmware/tegra21x/*.fw usr/lib/firmware/tegra21x
 usr/lib/xorg/modules/drivers/nvidia_drv.so usr/lib/xorg/modules/drivers
-usr/lib/xorg/extensions/libglxserver_nvidia.so usr/lib/xorg/extensions
+usr/lib/xorg/modules/extensions/libglxserver_nvidia.so usr/lib/xorg/extensions
 usr/share/doc/nvidia-tegra/LICENSE.* usr/share/doc/nvidia-tegra
 usr/share/egl/egl_external_platform.d/nvidia_wayland.json usr/share/egl/egl_external_platform.d
 usr/share/glvnd/egl_vendor.d/10_nvidia.json usr/share/glvnd/egl_vendor.d
