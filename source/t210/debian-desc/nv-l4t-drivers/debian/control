@@ -1,0 +1,20 @@
+Source: nv-l4t-drivers
+Section: kernel
+Priority: standard
+Maintainer: Hugo Melder <contact@hugomelder.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2.0
+
+Package: nv-l4t-drivers
+Architecture: arm64
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Nvidia L4T drivers for the Tegra T210.
+	This package contains the Nvidia L4T drivers for the Tegra T210 SoC.
+
+Package: nv-l4t-drivers-dev
+Section: libdevel
+Architecture: arm64
+Depends: nv-l4t-drivers (= 32.7.4-1)
+Description: Development files for Nvidia L4T drivers.
+	This package contains the development files for the Nvidia L4T drivers,
+	including headers and pkg-config files.
