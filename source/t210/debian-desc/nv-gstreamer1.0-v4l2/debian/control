@@ -2,7 +2,17 @@ Source: nv-gstreamer1.0-v4l2
 Section: video
 Priority: optional
 Maintainer: Hugo Melder <contact@hugomelder.com>
-Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config, nv-l4t-drivers-dev
+Build-Depends: debhelper-compat (= 13),
+               meson,
+               ninja-build,
+               pkg-config,
+               nv-l4t-drivers-dev,
+               libgstreamer1.0-dev,
+               gstreamer1.0-plugins-base,
+               gstreamer1.0-plugins-good,
+               libgstreamer-plugins-base1.0-dev,
+               libv4l-dev,
+               libegl1-mesa-dev
 Standards-Version: 4.6.2.0
 
 Package: nv-gstreamer1.0-v4l2
