@@ -35,6 +35,12 @@ function checkRTDependenciesNoFail {
         echo "ERROR: Install it with 'sudo apt install pbuilder'"
         exit 1
     fi
+    # Check if objdump is installed
+    if ! command -v objdump &> /dev/null; then
+        echo "ERROR: objdump is not installed!"
+        echo "ERROR: Install it with 'sudo apt install binutils'"
+        exit 1
+    fi
     # Check if we can create local debian repositories
     if ! command -v apt-ftparchive &> /dev/null; then
         echo "ERROR: apt-ftparchive is not installed! We need to create local debian repositories!"

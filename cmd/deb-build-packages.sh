@@ -18,8 +18,6 @@ source ${SCRIPT_DIR}/phases.sh
 # List of available debian packages (source/t210/debian-desc)
 # Populated by listSourcePackages
 SOURCE_PKG_ARRAY=()
-# List of available binary packages (binary/t210)
-BINARY_PKG_ARRAY=()
 
 function refreshLocalPackageIndex {
     mkdir -p ${PBUILDER_RESULT}
@@ -77,57 +75,6 @@ function pbuilderInit {
     fi
 
     return 0;
-}
-
-# Arguments: PACKAGE_LOCATION DESTINATION NAME
-function buildBinaryPackage {
-    local PACKAGE_LOCATION=$1
-    local DESTINATION=$2
-    local NAME=$3
-    local SPEC_FILE=${PACKAGE_LOCATION}/../${NAME}.spec
-
-    # Check if the package location exists
-    if test ! -d ${PACKAGE_LOCATION}; then
-        echo "ERROR: Package location ${PACKAGE_LOCATION} does not exist!"
-        return 1
-    fi
-
-    # Check if the destination exists
-    if test ! -d ${DESTINATION}; then
-        echo "ERROR: Destination ${DESTINATION} does not exist!"
-        return 1
-    fi
-
-    # Check if the spec file exists
-    if test ! -f ${SPEC_FILE}; then
-        echo "ERROR: Spec file ${SPEC_FILE} does not exist!"
-        return 1
-    fi
-
-    source ${SPEC_FILE}
-
-    echo "INFO: Preparing package ${NAME}..."
-    # Call the prepare function from spec file
-    if ! preparePkg ${UNPACKED_DEST} ${PACKAGE_LOCATION} ; then
-        echo "ERROR: Failed to prepare package ${NAME}!"
-        return 1
-    fi
-
-    # Build the package
-    echo "INFO: Building package ${NAME}..."
-    dpkg-deb --build ${PACKAGE_LOCATION} ${DESTINATION}
-    if test $? -ne 0; then
-        echo "ERROR: Failed to build package ${NAME}!"
-        return 1
-    fi
-
-    echo "INFO: Cleaning up package ${NAME}..."
-    if ! cleanPkg ${PACKAGE_LOCATION} ; then
-        echo "ERROR: Failed to clean up package ${NAME}!"
-        return 1
-    fi
-
-    return 0
 }
 
 # pdebuild requires PKGNAME_VERSION.orig.tar.gz tarballs in sources/t210/debian-desc
@@ -220,50 +167,6 @@ function listSourcePackages {
     fi
 }
 
-# Create a list of available binary packages
-#
-# Binary packages do not need an isolated build environment
-# and are built using dpkg-deb.
-function listBinaryPackages {
-    DIRS_LIST=$(find ${BINARY_T210_DIR} -maxdepth 1 -type d -not -path ${BINARY_T210_DIR})
-    
-    IFS=$'\n' # Set IFS to newline for splitting DIRS_LIST into array
-    BINARY_PKG_ARRAY=($DIRS_LIST) # Split DIRS_LIST into array
-    unset IFS # Reset IFS back to its original value
-    
-    echo "INFO: Found ${#BINARY_PKG_ARRAY[@]} binary packages"
-    # Only print the list of packages if verbose mode is enabled
-    if test $VERBOSE -eq 1; then
-        for dir in "${BINARY_PKG_ARRAY[@]}"; do
-            echo "  - $(basename "$dir")"
-        done
-    fi
-}
-
-
-# ARGUMENTS: PACKAGE_NAME
-function findBinaryPackage {
-    local PACKAGE_NAME=$1
-
-    for entry in "${BINARY_PKG_ARRAY[@]}"; do
-        if test "$(basename "$entry")" == "${PACKAGE_NAME}"; then
-            echo "INFO: Found binary package ${PACKAGE_NAME}!"
-            echo "INFO: Building binary package ${phase}..."
-
-            if ! buildBinaryPackage "${BINARY_T210_DIR}/${phase}" "${PBUILDER_RESULT}" "${phase}"; then
-                echo "ERROR: Failed to build binary package ${phase}!"
-                return 1
-            fi
-            echo "INFO: Updating local package index..."
-            if ! refreshLocalPackageIndex; then
-                return 1
-            fi
-            return 0
-        fi
-    done
-    return 1
-}
-
 # ARGUMENTS: PACKAGE_NAME
 function findSourcePackage {
     local PACKAGE_NAME=$1
@@ -291,8 +194,6 @@ function buildPackagesT210 {
 
     # Get a list of all debian packages in source/t210/debian-desc
     listSourcePackages
-    # Get a list of all debian binary packages in binary/t210
-    listBinaryPackages
 
     for phase in "${BUILD_PHASES_ARRAY[@]}"; do
         # Check if the package should be skipped
@@ -303,13 +204,10 @@ function buildPackagesT210 {
             fi
         fi
 
-        # Check if the package is a binary package
-        if ! findBinaryPackage "${phase}"; then
-            # Check if the package is a source package
-            if ! findSourcePackage "${phase}"; then
-                echo "ERROR: Failed to find package ${phase}!"
-                return 1
-            fi
+        # Check if the package is a source package
+        if ! findSourcePackage "${phase}"; then
+            echo "ERROR: Failed to find package ${phase}!"
+            return 1
         fi
     done
 
