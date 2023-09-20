@@ -23,11 +23,17 @@ go.work
 
 # Debian
 *.deb
+*.build
+*.changes
+*.dsc
+*.orig.tar.gz
+*.debian.tar.xz
 
 # Repository
 nvidia-bin-release/
 jetson-packages
 packages/
+test
 
 # PBuilder
 pbuilder/*.tgz
