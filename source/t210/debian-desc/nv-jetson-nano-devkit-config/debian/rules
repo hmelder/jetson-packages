@@ -1,4 +1,6 @@
 #!/usr/bin/make -f
 
 %:
-    dh $@ --with meson
+	dh $@ --buildsystem=meson
+
+override_dh_install:
